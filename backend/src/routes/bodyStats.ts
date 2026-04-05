@@ -7,8 +7,8 @@ const router = Router();
 // Get body stats
 router.get('/', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const [rows] = await pool.query(
-      'SELECT * FROM body_stats WHERE user_id = ? ORDER BY recorded_at DESC LIMIT 30',
+    const { rows } = await pool.query(
+      'SELECT * FROM body_stats WHERE user_id = $1 ORDER BY recorded_at DESC LIMIT 30',
       [req.user!.userId]
     );
 
@@ -23,13 +23,13 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { weight, chest, arms, waist } = req.body;
 
-    const [result] = await pool.query(
-      'INSERT INTO body_stats (user_id, weight, chest, arms, waist) VALUES (?, ?, ?, ?, ?)',
+    const { rows: result } = await pool.query(
+      'INSERT INTO body_stats (user_id, weight, chest, arms, waist) VALUES ($1, $2, $3, $4, $5) RETURNING id',
       [req.user!.userId, weight || null, chest || null, arms || null, waist || null]
     );
 
     res.status(201).json({
-      id: (result as any).insertId,
+      id: result[0].id,
       weight, chest, arms, waist
     });
   } catch (error: any) {

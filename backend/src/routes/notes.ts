@@ -8,8 +8,8 @@ const router = Router();
 // Get notes
 router.get('/', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const [rows] = await pool.query(
-      'SELECT * FROM notes WHERE user_id = ? ORDER BY updated_at DESC',
+    const { rows } = await pool.query(
+      'SELECT * FROM notes WHERE user_id = $1 ORDER BY updated_at DESC',
       [req.user!.userId]
     );
     res.json(rows);
@@ -21,11 +21,11 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
 // Get single note
 router.get('/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const [rows] = await pool.query(
-      'SELECT * FROM notes WHERE id = ? AND user_id = ?',
+    const { rows } = await pool.query(
+      'SELECT * FROM notes WHERE id = $1 AND user_id = $2',
       [parseInt(req.params.id), req.user!.userId]
     );
-    const note = (rows as any[])[0];
+    const note = rows[0];
     if (!note) {
       res.status(404).json({ error: 'Note not found.' });
       return;
@@ -46,12 +46,12 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
       return;
     }
 
-    const [result] = await pool.query(
-      'INSERT INTO notes (user_id, title, content) VALUES (?, ?, ?)',
+    const { rows: result } = await pool.query(
+      'INSERT INTO notes (user_id, title, content) VALUES ($1, $2, $3) RETURNING id',
       [req.user!.userId, title, content || '']
     );
 
-    const noteId = (result as any).insertId;
+    const noteId = result[0].id;
 
     // Award XP for creating a note
     const xpResult = await awardXP(
@@ -73,7 +73,7 @@ router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { title, content } = req.body;
     await pool.query(
-      'UPDATE notes SET title = ?, content = ? WHERE id = ? AND user_id = ?',
+      'UPDATE notes SET title = $1, content = $2 WHERE id = $3 AND user_id = $4',
       [title, content, parseInt(req.params.id), req.user!.userId]
     );
     res.json({ message: 'Note updated.' });
@@ -86,7 +86,7 @@ router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
 router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     await pool.query(
-      'DELETE FROM notes WHERE id = ? AND user_id = ?',
+      'DELETE FROM notes WHERE id = $1 AND user_id = $2',
       [parseInt(req.params.id), req.user!.userId]
     );
     res.json({ message: 'Note deleted.' });

@@ -8,8 +8,8 @@ const router = Router();
 // Get habits
 router.get('/', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const [rows] = await pool.query(
-      'SELECT * FROM habits WHERE user_id = ? ORDER BY created_at ASC',
+    const { rows } = await pool.query(
+      'SELECT * FROM habits WHERE user_id = $1 ORDER BY created_at ASC',
       [req.user!.userId]
     );
     res.json(rows);
@@ -28,13 +28,13 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
       return;
     }
 
-    const [result] = await pool.query(
-      'INSERT INTO habits (user_id, name, icon, xp_per_completion) VALUES (?, ?, ?, ?)',
+    const { rows: result } = await pool.query(
+      'INSERT INTO habits (user_id, name, icon, xp_per_completion) VALUES ($1, $2, $3, $4) RETURNING id',
       [req.user!.userId, name, icon || '⚡', xp_per_completion || 20]
     );
 
     res.status(201).json({
-      id: (result as any).insertId,
+      id: result[0].id,
       name, icon: icon || '⚡',
       streak: 0, best_streak: 0,
       xp_per_completion: xp_per_completion || 20
@@ -49,11 +49,11 @@ router.post('/:id/checkin', authMiddleware, async (req: Request, res: Response) 
   try {
     const habitId = parseInt(req.params.id);
 
-    const [rows] = await pool.query(
-      'SELECT * FROM habits WHERE id = ? AND user_id = ?',
+    const { rows } = await pool.query(
+      'SELECT * FROM habits WHERE id = $1 AND user_id = $2',
       [habitId, req.user!.userId]
     );
-    const habit = (rows as any[])[0];
+    const habit = rows[0];
 
     if (!habit) {
       res.status(404).json({ error: 'Habit not found.' });
@@ -82,7 +82,7 @@ router.post('/:id/checkin', authMiddleware, async (req: Request, res: Response) 
     const bestStreak = Math.max(newStreak, habit.best_streak);
 
     await pool.query(
-      'UPDATE habits SET streak = ?, best_streak = ?, last_completed = CURDATE() WHERE id = ?',
+      'UPDATE habits SET streak = $1, best_streak = $2, last_completed = CURRENT_DATE WHERE id = $3',
       [newStreak, bestStreak, habitId]
     );
 
@@ -109,7 +109,7 @@ router.post('/:id/checkin', authMiddleware, async (req: Request, res: Response) 
 router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     await pool.query(
-      'DELETE FROM habits WHERE id = ? AND user_id = ?',
+      'DELETE FROM habits WHERE id = $1 AND user_id = $2',
       [parseInt(req.params.id), req.user!.userId]
     );
     res.json({ message: 'Habit deleted.' });

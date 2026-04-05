@@ -11,8 +11,8 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = parseInt(req.query.offset as string) || 0;
 
-    const [rows] = await pool.query(
-      'SELECT * FROM workouts WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+    const { rows } = await pool.query(
+      'SELECT * FROM workouts WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
       [req.user!.userId, limit, offset]
     );
 
@@ -35,12 +35,12 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
 
     const xpEarned = calculateWorkoutXP(sets_count, reps, weight || 0);
 
-    const [result] = await pool.query(
-      'INSERT INTO workouts (user_id, exercise, muscle_group, sets_count, reps, weight, xp_earned) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    const { rows: result } = await pool.query(
+      'INSERT INTO workouts (user_id, exercise, muscle_group, sets_count, reps, weight, xp_earned) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
       [req.user!.userId, exercise, muscle_group, sets_count, reps, weight || 0, xpEarned]
     );
 
-    const workoutId = (result as any).insertId;
+    const workoutId = result[0].id;
 
     // Award global XP
     const xpResult = await awardXP(
@@ -71,8 +71,8 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
 // Get muscle XP stats
 router.get('/muscle-xp', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const [rows] = await pool.query(
-      'SELECT * FROM muscle_xp WHERE user_id = ?',
+    const { rows } = await pool.query(
+      'SELECT * FROM muscle_xp WHERE user_id = $1',
       [req.user!.userId]
     );
 
