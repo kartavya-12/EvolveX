@@ -18,29 +18,29 @@ router.post('/register', async (req: Request, res: Response) => {
     }
 
     // Check if user exists
-    const { rows: existing } = await pool.query(
-      'SELECT id FROM users WHERE email = $1 OR username = $2',
+    const [existing] = await pool.query(
+      'SELECT id FROM users WHERE email = ? OR username = ?',
       [email, username]
     );
-    if (existing.length > 0) {
+    if ((existing as any[]).length > 0) {
       res.status(409).json({ error: 'Username or email already exists.' });
       return;
     }
 
     const password_hash = await bcrypt.hash(password, 12);
 
-    const { rows: result } = await pool.query(
-      'INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING id',
+    const [result] = await pool.query(
+      'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',
       [username, email, password_hash]
     );
 
-    const userId = result[0].id;
+    const userId = (result as any).insertId;
 
     // Initialize muscle XP entries
     const muscleGroups = ['chest', 'arms', 'legs', 'back', 'shoulders', 'core'];
     for (const mg of muscleGroups) {
       await pool.query(
-        'INSERT INTO muscle_xp (user_id, muscle_group, level, xp) VALUES ($1, $2, 1, 0)',
+        'INSERT INTO muscle_xp (user_id, muscle_group, level, xp) VALUES (?, ?, 1, 0)',
         [userId, mg]
       );
     }
@@ -72,8 +72,8 @@ router.post('/login', async (req: Request, res: Response) => {
       return;
     }
 
-    const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    const user = rows[0];
+    const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+    const user = (rows as any[])[0];
 
     if (!user) {
       res.status(401).json({ error: 'Invalid credentials.' });
@@ -114,11 +114,11 @@ router.post('/login', async (req: Request, res: Response) => {
 // Get current user
 router.get('/me', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const { rows } = await pool.query(
-      'SELECT id, username, email, level, total_xp, title, created_at FROM users WHERE id = $1',
+    const [rows] = await pool.query(
+      'SELECT id, username, email, level, total_xp, title, created_at FROM users WHERE id = ?',
       [req.user!.userId]
     );
-    const user = rows[0];
+    const user = (rows as any[])[0];
 
     if (!user) {
       res.status(404).json({ error: 'User not found.' });

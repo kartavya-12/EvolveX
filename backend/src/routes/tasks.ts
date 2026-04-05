@@ -9,17 +9,17 @@ const router = Router();
 router.get('/', authMiddleware, async (req: Request, res: Response) => {
   try {
     const status = req.query.status as string;
-    let query = 'SELECT * FROM tasks WHERE user_id = $1';
+    let query = 'SELECT * FROM tasks WHERE user_id = ?';
     const params: any[] = [req.user!.userId];
 
     if (status) {
-      query += ' AND status = $2';
+      query += ' AND status = ?';
       params.push(status);
     }
 
-    query += " ORDER BY CASE priority WHEN 'legendary' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END, created_at DESC";
+    query += ' ORDER BY FIELD(priority, "legendary", "high", "medium", "low"), created_at DESC';
 
-    const { rows } = await pool.query(query, params);
+    const [rows] = await pool.query(query, params);
     res.json(rows);
   } catch (error: any) {
     res.status(500).json({ error: 'Internal server error.' });
@@ -36,13 +36,13 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
       return;
     }
 
-    const { rows: result } = await pool.query(
-      'INSERT INTO tasks (user_id, title, description, priority, xp_reward, category, due_date) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+    const [result] = await pool.query(
+      'INSERT INTO tasks (user_id, title, description, priority, xp_reward, category, due_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [req.user!.userId, title, description || '', priority || 'medium', xp_reward || 50, category || 'side', due_date || null]
     );
 
     res.status(201).json({
-      id: result[0].id,
+      id: (result as any).insertId,
       title, description, priority: priority || 'medium',
       xp_reward: xp_reward || 50, category: category || 'side',
       status: 'pending'
@@ -58,11 +58,11 @@ router.patch('/:id/complete', authMiddleware, async (req: Request, res: Response
     const taskId = parseInt(req.params.id);
 
     // Verify ownership and get task
-    const { rows } = await pool.query(
-      'SELECT * FROM tasks WHERE id = $1 AND user_id = $2',
+    const [rows] = await pool.query(
+      'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
       [taskId, req.user!.userId]
     );
-    const task = rows[0];
+    const task = (rows as any[])[0];
 
     if (!task) {
       res.status(404).json({ error: 'Task not found.' });
@@ -76,7 +76,7 @@ router.patch('/:id/complete', authMiddleware, async (req: Request, res: Response
 
     // Mark completed
     await pool.query(
-      'UPDATE tasks SET status = \'completed\', completed_at = NOW() WHERE id = $1',
+      'UPDATE tasks SET status = "completed", completed_at = NOW() WHERE id = ?',
       [taskId]
     );
 
@@ -103,7 +103,7 @@ router.patch('/:id/complete', authMiddleware, async (req: Request, res: Response
 router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     await pool.query(
-      'DELETE FROM tasks WHERE id = $1 AND user_id = $2',
+      'DELETE FROM tasks WHERE id = ? AND user_id = ?',
       [parseInt(req.params.id), req.user!.userId]
     );
     res.json({ message: 'Task deleted.' });

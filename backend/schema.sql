@@ -1,8 +1,10 @@
--- EvolveX Database Schema (PostgreSQL)
+-- EvolveX Database Schema
+CREATE DATABASE IF NOT EXISTS evolvex;
+USE evolvex;
 
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
-  id SERIAL PRIMARY KEY,
+  id INT AUTO_INCREMENT PRIMARY KEY,
   username VARCHAR(50) NOT NULL UNIQUE,
   email VARCHAR(100) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
@@ -10,97 +12,104 @@ CREATE TABLE IF NOT EXISTS users (
   total_xp INT DEFAULT 0,
   title VARCHAR(100) DEFAULT 'Novice Adventurer',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 -- Workouts table
 CREATE TABLE IF NOT EXISTS workouts (
-  id SERIAL PRIMARY KEY,
-  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
   exercise VARCHAR(100) NOT NULL,
-  muscle_group VARCHAR(50) NOT NULL CHECK (muscle_group IN ('chest', 'arms', 'legs', 'back', 'shoulders', 'core')),
+  muscle_group ENUM('chest', 'arms', 'legs', 'back', 'shoulders', 'core') NOT NULL,
   sets_count INT NOT NULL,
   reps INT NOT NULL,
   weight DECIMAL(6,2) DEFAULT 0,
   xp_earned INT NOT NULL DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Muscle XP table
 CREATE TABLE IF NOT EXISTS muscle_xp (
-  id SERIAL PRIMARY KEY,
-  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  muscle_group VARCHAR(50) NOT NULL CHECK (muscle_group IN ('chest', 'arms', 'legs', 'back', 'shoulders', 'core')),
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  muscle_group ENUM('chest', 'arms', 'legs', 'back', 'shoulders', 'core') NOT NULL,
   level INT DEFAULT 1,
   xp INT DEFAULT 0,
-  UNIQUE (user_id, muscle_group)
+  UNIQUE KEY unique_user_muscle (user_id, muscle_group),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Body Stats table
 CREATE TABLE IF NOT EXISTS body_stats (
-  id SERIAL PRIMARY KEY,
-  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
   weight DECIMAL(5,2),
   chest DECIMAL(5,2),
   arms DECIMAL(5,2),
   waist DECIMAL(5,2),
-  recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Tasks (Quests) table
 CREATE TABLE IF NOT EXISTS tasks (
-  id SERIAL PRIMARY KEY,
-  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
   title VARCHAR(200) NOT NULL,
   description TEXT,
-  status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed')),
-  priority VARCHAR(20) DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'legendary')),
+  status ENUM('pending', 'in_progress', 'completed') DEFAULT 'pending',
+  priority ENUM('low', 'medium', 'high', 'legendary') DEFAULT 'medium',
   xp_reward INT DEFAULT 50,
-  category VARCHAR(20) DEFAULT 'side' CHECK (category IN ('daily', 'weekly', 'side', 'main')),
+  category ENUM('daily', 'weekly', 'side', 'main') DEFAULT 'side',
   due_date DATE,
-  completed_at TIMESTAMP,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  completed_at TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Notes table
 CREATE TABLE IF NOT EXISTS notes (
-  id SERIAL PRIMARY KEY,
-  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
   title VARCHAR(200) NOT NULL,
   content TEXT,
   xp_earned INT DEFAULT 10,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Habits table
 CREATE TABLE IF NOT EXISTS habits (
-  id SERIAL PRIMARY KEY,
-  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
   name VARCHAR(100) NOT NULL,
   icon VARCHAR(10) DEFAULT '⚡',
   streak INT DEFAULT 0,
   best_streak INT DEFAULT 0,
   xp_per_completion INT DEFAULT 20,
-  last_completed DATE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  last_completed DATE NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- XP Logs table
 CREATE TABLE IF NOT EXISTS xp_logs (
-  id SERIAL PRIMARY KEY,
-  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  source VARCHAR(50) NOT NULL CHECK (source IN ('workout', 'task', 'habit', 'note', 'bonus')),
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  source ENUM('workout', 'task', 'habit', 'note', 'bonus') NOT NULL,
   source_id INT,
   xp_amount INT NOT NULL,
   description VARCHAR(200),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_workouts_user ON workouts(user_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id, status);
-CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_habits_user ON habits(user_id);
-CREATE INDEX IF NOT EXISTS idx_xp_logs_user ON xp_logs(user_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_body_stats_user ON body_stats(user_id, recorded_at);
+CREATE INDEX idx_workouts_user ON workouts(user_id, created_at);
+CREATE INDEX idx_tasks_user ON tasks(user_id, status);
+CREATE INDEX idx_notes_user ON notes(user_id, created_at);
+CREATE INDEX idx_habits_user ON habits(user_id);
+CREATE INDEX idx_xp_logs_user ON xp_logs(user_id, created_at);
+CREATE INDEX idx_body_stats_user ON body_stats(user_id, recorded_at);

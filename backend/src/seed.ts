@@ -7,14 +7,13 @@ async function seed() {
   try {
     // Create demo user
     const passwordHash = await bcrypt.hash('demo123', 12);
-    const { rows: userResult } = await pool.query(
+    const [userResult] = await pool.query(
       `INSERT INTO users (username, email, password_hash, level, total_xp, title) 
-       VALUES ($1, $2, $3, 5, 2800, 'Awakened One')
-       ON CONFLICT (email) DO UPDATE SET username = EXCLUDED.username
-       RETURNING id`,
-      ['hunter', 'hunter@evolvex.com', passwordHash]
+       VALUES ('hunter', 'hunter@evolvex.com', ?, 5, 2800, 'Awakened One')
+       ON DUPLICATE KEY UPDATE username = username`,
+      [passwordHash]
     );
-    const userId = userResult[0]?.id || 1;
+    const userId = (userResult as any).insertId || 1;
 
     // Muscle XP
     const muscles = [
@@ -28,9 +27,9 @@ async function seed() {
 
     for (const m of muscles) {
       await pool.query(
-        `INSERT INTO muscle_xp (user_id, muscle_group, level, xp) VALUES ($1, $2, $3, $4)
-         ON CONFLICT (user_id, muscle_group) DO UPDATE SET level = EXCLUDED.level, xp = EXCLUDED.xp`,
-        [userId, m.group, m.level, m.xp]
+        `INSERT INTO muscle_xp (user_id, muscle_group, level, xp) VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE level = ?, xp = ?`,
+        [userId, m.group, m.level, m.xp, m.level, m.xp]
       );
     }
 
@@ -46,7 +45,7 @@ async function seed() {
 
     for (const w of workouts) {
       await pool.query(
-        'INSERT INTO workouts (user_id, exercise, muscle_group, sets_count, reps, weight, xp_earned) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        'INSERT INTO workouts (user_id, exercise, muscle_group, sets_count, reps, weight, xp_earned) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [userId, w.exercise, w.muscle_group, w.sets_count, w.reps, w.weight, w.xp_earned]
       );
     }
@@ -62,7 +61,7 @@ async function seed() {
 
     for (const t of tasks) {
       await pool.query(
-        'INSERT INTO tasks (user_id, title, description, priority, xp_reward, category) VALUES ($1, $2, $3, $4, $5, $6)',
+        'INSERT INTO tasks (user_id, title, description, priority, xp_reward, category) VALUES (?, ?, ?, ?, ?, ?)',
         [userId, t.title, t.description, t.priority, t.xp_reward, t.category]
       );
     }
@@ -76,7 +75,7 @@ async function seed() {
 
     for (const n of notes) {
       await pool.query(
-        'INSERT INTO notes (user_id, title, content) VALUES ($1, $2, $3)',
+        'INSERT INTO notes (user_id, title, content) VALUES (?, ?, ?)',
         [userId, n.title, n.content]
       );
     }
@@ -91,7 +90,7 @@ async function seed() {
 
     for (const h of habits) {
       await pool.query(
-        'INSERT INTO habits (user_id, name, icon, streak, best_streak, xp_per_completion) VALUES ($1, $2, $3, $4, $5, $6)',
+        'INSERT INTO habits (user_id, name, icon, streak, best_streak, xp_per_completion) VALUES (?, ?, ?, ?, ?, ?)',
         [userId, h.name, h.icon, h.streak, h.best_streak, h.xp_per_completion]
       );
     }
@@ -105,7 +104,7 @@ async function seed() {
 
     for (const bs of bodyStats) {
       await pool.query(
-        'INSERT INTO body_stats (user_id, weight, chest, arms, waist) VALUES ($1, $2, $3, $4, $5)',
+        'INSERT INTO body_stats (user_id, weight, chest, arms, waist) VALUES (?, ?, ?, ?, ?)',
         [userId, bs.weight, bs.chest, bs.arms, bs.waist]
       );
     }
@@ -121,7 +120,7 @@ async function seed() {
 
     for (const log of xpLogs) {
       await pool.query(
-        'INSERT INTO xp_logs (user_id, source, xp_amount, description) VALUES ($1, $2, $3, $4)',
+        'INSERT INTO xp_logs (user_id, source, xp_amount, description) VALUES (?, ?, ?, ?)',
         [userId, log.source, log.xp_amount, log.description]
       );
     }

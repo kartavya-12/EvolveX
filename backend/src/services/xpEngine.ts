@@ -69,13 +69,13 @@ export async function awardXP(
   sourceId: number | null,
   description: string
 ): Promise<{ newTotalXp: number; newLevel: number; leveledUp: boolean; title: string }> {
-  const conn = await pool.connect();
+  const conn = await pool.getConnection();
   try {
-    await conn.query('BEGIN');
+    await conn.beginTransaction();
 
     // Get current user data
-    const { rows } = await conn.query('SELECT total_xp, level FROM users WHERE id = $1', [userId]);
-    const user = rows[0];
+    const [rows] = await conn.query('SELECT total_xp, level FROM users WHERE id = ?', [userId]);
+    const user = (rows as any[])[0];
     if (!user) throw new Error('User not found');
 
     const oldLevel = user.level;
@@ -86,20 +86,20 @@ export async function awardXP(
 
     // Update user
     await conn.query(
-      'UPDATE users SET total_xp = $1, level = $2, title = $3 WHERE id = $4',
+      'UPDATE users SET total_xp = ?, level = ?, title = ? WHERE id = ?',
       [newTotalXp, newLevel, title, userId]
     );
 
     // Log XP
     await conn.query(
-      'INSERT INTO xp_logs (user_id, source, source_id, xp_amount, description) VALUES ($1, $2, $3, $4, $5)',
+      'INSERT INTO xp_logs (user_id, source, source_id, xp_amount, description) VALUES (?, ?, ?, ?, ?)',
       [userId, source, sourceId, xpAmount, description]
     );
 
-    await conn.query('COMMIT');
+    await conn.commit();
     return { newTotalXp, newLevel, leveledUp, title };
   } catch (error) {
-    await conn.query('ROLLBACK');
+    await conn.rollback();
     throw error;
   } finally {
     conn.release();
@@ -110,21 +110,21 @@ export async function awardXP(
 export async function awardMuscleXP(userId: number, muscleGroup: MuscleGroup, xpAmount: number): Promise<{ level: number; xp: number }> {
   // Upsert muscle XP
   await pool.query(
-    `INSERT INTO muscle_xp (user_id, muscle_group, xp, level) VALUES ($1, $2, $3, 1)
-     ON CONFLICT (user_id, muscle_group) DO UPDATE SET xp = muscle_xp.xp + EXCLUDED.xp`,
-    [userId, muscleGroup, xpAmount]
+    `INSERT INTO muscle_xp (user_id, muscle_group, xp, level) VALUES (?, ?, ?, 1)
+     ON DUPLICATE KEY UPDATE xp = xp + ?`,
+    [userId, muscleGroup, xpAmount, xpAmount]
   );
 
   // Recalculate muscle level
-  const { rows } = await pool.query(
-    'SELECT xp FROM muscle_xp WHERE user_id = $1 AND muscle_group = $2',
+  const [rows] = await pool.query(
+    'SELECT xp FROM muscle_xp WHERE user_id = ? AND muscle_group = ?',
     [userId, muscleGroup]
   );
-  const muscleData = rows[0];
+  const muscleData = (rows as any[])[0];
   const newLevel = calculateLevel(muscleData.xp);
 
   await pool.query(
-    'UPDATE muscle_xp SET level = $1 WHERE user_id = $2 AND muscle_group = $3',
+    'UPDATE muscle_xp SET level = ? WHERE user_id = ? AND muscle_group = ?',
     [newLevel, userId, muscleGroup]
   );
 
